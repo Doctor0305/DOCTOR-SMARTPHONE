@@ -1,0 +1,6 @@
+DOCTOR SMARTPHONE — PETUNJUK
+1. Ekstrak ZIP, lalu upload isi folder ini ke repositori GitHub doctorsmartphone.
+2. Hubungkan repositori ke hosting statis HTTPS.
+3. supabase_schema.sql adalah skema awal, belum termasuk policy RLS aman.
+4. Jangan letakkan password database atau service_role/secret key di website.
+BATASAN: login di index.html hanya simulasi lokal; Supabase belum terhubung; sinkronisasi antarperangkat, QRIS lengkap, utang lengkap, dan struk produksi belum tersedia. Jangan gunakan untuk transaksi toko sungguhan sebelum pengembangan keamanan dan pengujian selesai.

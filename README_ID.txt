@@ -1,0 +1,1 @@
+DoctorSmartphone starter prototype. Demo lokal: produk, stok, penjualan sederhana, estimasi laba demo, penyimpanan browser dan ekspor JSON. Belum ada login aman, koneksi Supabase, sinkronisasi multi perangkat, QRIS/struk/utang lengkap. Baca KONFIGURASI.txt.

@@ -1,0 +1,7 @@
+-- Skema awal, belum siap produksi. Kebijakan RLS harus dibuat dan diuji.
+create table if not exists public.profiles(id uuid primary key references auth.users(id) on delete cascade, display_name text not null default '', role text not null check(role in ('super_admin','cashier')));
+create table if not exists public.products(id uuid primary key default gen_random_uuid(), code text unique not null, name text not null, cost_price numeric(14,2) not null default 0, sell_price numeric(14,2) not null default 0, stock integer not null default 0 check(stock>=0), updated_at timestamptz not null default now());
+create table if not exists public.sales(id uuid primary key default gen_random_uuid(), created_by uuid references auth.users(id), total numeric(14,2) not null default 0, created_at timestamptz not null default now(), sync_id text unique);
+create table if not exists public.sale_items(id uuid primary key default gen_random_uuid(), sale_id uuid not null references public.sales(id) on delete cascade, product_id uuid references public.products(id), product_name text not null, qty integer not null check(qty>0), unit_price numeric(14,2) not null, unit_cost numeric(14,2) not null);
+alter table public.profiles enable row level security; alter table public.products enable row level security; alter table public.sales enable row level security; alter table public.sale_items enable row level security;
+-- Jangan gunakan database untuk operasional sampai RLS dan transaksi atomik server-side selesai.
