@@ -1,1 +1,569 @@
-<!doctype html><html lang="id"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.webmanifest"><title>DoctorSmartphone</title><style>body{font:16px Arial;background:#f3f6f4;margin:0;color:#173325}header{background:#123b2a;color:white;padding:20px}main{max-width:850px;margin:auto;padding:16px}.card{background:white;padding:16px;margin:12px 0;border-radius:12px}input,button,select{font:inherit;padding:10px;margin:4px;border-radius:7px;border:1px solid #ccd5cf}button{background:#17633f;color:white;border:0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:7px;border-bottom:1px solid #ddd}.note{background:#e7eee9;padding:10px;border-radius:8px}</style></head><body><header><h1>DoctorSmartphone</h1>Prototipe kasir offline — demo</header><main><div class="card note" id="net"></div><div class="card"><h2>Masuk demo</h2><div class="grid"><label>Peran<br><select id="role"><option>Kasir</option><option>Super Admin</option></select></label><label>Nama pengguna<br><input id="username" placeholder="kasir1"></label><label>PIN demo<br><input id="pin" type="password"></label></div><button onclick="login()">Masuk demo</button><span id="msg"></span></div><section id="app" hidden><div class="card"><h2>Tambah barang</h2><div class="grid"><label>Kode/barcode<br><input id="code"></label><label>Nama barang<br><input id="name"></label><label>Modal<br><input id="cost" type="number" value="0"></label><label>Harga jual<br><input id="price" type="number" value="0"></label><label>Stok<br><input id="stock" type="number" value="0"></label></div><button onclick="addProduct()">Simpan barang</button></div><div class="card"><h2>Daftar barang</h2><div id="products"></div></div><div class="card"><h2>Transaksi demo</h2><label>Kode barang <input id="saleCode"></label><label>Jumlah <input id="qty" type="number" value="1" min="1"></label><button onclick="sell()">Catat penjualan</button><div id="sales"></div></div><div class="card"><button onclick="backup()">Ekspor cadangan JSON</button> <button onclick="logout()">Keluar</button></div></section><p>Catatan: login hanya simulasi lokal. Belum terhubung ke Supabase dan belum sinkron antarperangkat. Jangan gunakan untuk transaksi sungguhan.</p></main><script>const PK='ds_products_demo',SK='ds_sales_demo';let ps=JSON.parse(localStorage.getItem(PK)||'[]'),ss=JSON.parse(localStorage.getItem(SK)||'[]');function status(){document.getElementById('net').textContent=navigator.onLine?'Online — cloud belum terhubung':'Offline — data hanya di perangkat ini'}addEventListener('online',status);addEventListener('offline',status);status();function login(){if(!username.value||!pin.value){msg.textContent=' Isi nama dan PIN demo.';return}app.hidden=false;msg.textContent=' Mode demo: '+role.value;draw()}function logout(){app.hidden=true}function save(){localStorage.setItem(PK,JSON.stringify(ps));localStorage.setItem(SK,JSON.stringify(ss));draw()}function addProduct(){let p={code:code.value.trim(),name:name.value.trim(),cost:+cost.value,price:+price.value,stock:+stock.value};if(!p.code||!p.name){alert('Isi kode dan nama barang');return}let i=ps.findIndex(x=>x.code===p.code);if(i<0)ps.push(p);else ps[i]=p;save()}function sell(){let p=ps.find(x=>x.code===saleCode.value.trim()),q=+qty.value;if(!p||q<1||p.stock<q){alert('Barang tidak ditemukan atau stok kurang');return}p.stock-=q;ss.unshift({time:new Date().toLocaleString('id-ID'),name:p.name,qty:q,total:p.price*q,profit:(p.price-p.cost)*q});save()}function esc(x){return String(x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}function draw(){products.innerHTML=ps.length?'<table><tr><th>Kode</th><th>Barang</th><th>Harga</th><th>Stok</th></tr>'+ps.map(p=>`<tr><td>${esc(p.code)}</td><td>${esc(p.name)}</td><td>Rp ${p.price.toLocaleString('id-ID')}</td><td>${p.stock}</td></tr>`).join('')+'</table>':'Belum ada barang';sales.innerHTML=ss.length?'<table><tr><th>Waktu</th><th>Barang</th><th>Qty</th><th>Total</th><th>Laba demo</th></tr>'+ss.map(s=>`<tr><td>${esc(s.time)}</td><td>${esc(s.name)}</td><td>${s.qty}</td><td>Rp ${s.total.toLocaleString('id-ID')}</td><td>Rp ${s.profit.toLocaleString('id-ID')}</td></tr>`).join('')+'</table>':'Belum ada transaksi'}function backup(){let a=document.createElement('a'),u=URL.createObjectURL(new Blob([JSON.stringify({products:ps,sales:ss},null,2)],{type:'application/json'}));a.href=u;a.download='doctor-smartphone-backup.json';a.click();URL.revokeObjectURL(u)}if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));</script></body></html>
+
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b2a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>DOCTOR SMARTHONE</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      font-family: Arial, sans-serif;
+      color: #173325;
+      background: #f3f6f4;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { background: #123b2a; color: white; padding: 20px; }
+    header h1 { margin: 0 0 8px; }
+    main { max-width: 1000px; margin: auto; padding: 16px; }
+    .card {
+      background: white;
+      padding: 16px;
+      margin: 12px 0;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px #0000000b;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    label { display: block; margin: 8px 0; }
+    input, select, button {
+      width: 100%;
+      padding: 11px;
+      margin-top: 5px;
+      border: 1px solid #ccd5cf;
+      border-radius: 7px;
+      font: inherit;
+    }
+    button {
+      background: #17633f;
+      color: white;
+      border: 0;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .55; cursor: wait; }
+    button.secondary { background: #52665a; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .actions button { width: auto; }
+    .note { background: #e7eee9; padding: 12px; border-radius: 8px; }
+    .error { color: #a21d1d; }
+    .success { color: #17633f; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 9px; border-bottom: 1px solid #ddd; }
+    [hidden] { display: none !important; }
+    @media print {
+      header, #loginCard, #productFormCard, #saleCard,
+      #historyCard, #logoutButton, .no-print { display: none !important; }
+      body { background: white; }
+      main { max-width: none; padding: 0; }
+      .card { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>DOCTOR SMARTHONE</h1>
+  <div>Manajemen barang dan transaksi</div>
+</header>
+
+<main>
+  <div id="status" class="note" role="status">Memeriksa konfigurasi...</div>
+
+  <section id="loginCard" class="card">
+    <h2>Login akun</h2>
+    <p>Gunakan email dan kata sandi akun yang sudah dibuat di Supabase Authentication.</p>
+    <form id="loginForm">
+      <label>Email
+        <input id="email" type="email" autocomplete="username" required>
+      </label>
+      <label>Kata sandi
+        <input id="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button id="loginButton" type="submit">Masuk</button>
+    </form>
+    <p id="loginMessage" role="status"></p>
+  </section>
+
+  <section id="app" hidden>
+    <div class="card">
+      <div class="grid">
+        <div>
+          <strong id="userName">Pengguna</strong>
+          <div id="userRole"></div>
+        </div>
+        <div class="actions">
+          <button id="refreshButton" type="button">Muat ulang data</button>
+          <button id="logoutButton" class="secondary" type="button">Keluar</button>
+        </div>
+      </div>
+    </div>
+
+    <section id="productFormCard" class="card">
+      <h2>Tambah barang / tambah stok</h2>
+      <p>Jumlah yang dimasukkan akan ditambahkan ke stok barang yang sudah ada. Kasir tidak dapat mengubah harga barang lama.</p>
+      <form id="productForm">
+        <div class="grid">
+          <label>Kode barang / barcode
+            <input id="productCode" required>
+          </label>
+          <label>Nama barang
+            <input id="productName" required>
+          </label>
+          <label>Harga modal
+            <input id="costPrice" type="number" min="0" step="1" value="0" required>
+          </label>
+          <label>Harga jual
+            <input id="sellPrice" type="number" min="0" step="1" value="0" required>
+          </label>
+          <label>Jumlah stok masuk
+            <input id="quantityIn" type="number" min="0" step="1" value="1" required>
+          </label>
+        </div>
+        <button id="saveProductButton" type="submit">Simpan barang</button>
+      </form>
+      <p id="productMessage" role="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>Daftar barang</h2>
+      <div class="table-wrap" id="products">Memuat barang...</div>
+    </section>
+
+    <section id="saleCard" class="card">
+      <h2>Transaksi</h2>
+      <form id="saleForm">
+        <div class="grid">
+          <label>Kode barang
+            <input id="saleCode" required>
+          </label>
+          <label>Jumlah
+            <input id="saleQuantity" type="number" min="1" step="1" value="1" required>
+          </label>
+          <label>Metode pembayaran
+            <select id="paymentMethod">
+              <option value="cash">Tunai</option>
+              <option value="qris">QRIS</option>
+            </select>
+          </label>
+        </div>
+        <button id="sellButton" type="submit">Proses penjualan</button>
+      </form>
+      <p id="saleMessage" role="status"></p>
+      <div id="receipt" class="card" hidden></div>
+      <button id="printButton" class="secondary no-print" type="button" hidden>Cetak struk</button>
+    </section>
+
+    <section id="historyCard" class="card">
+      <h2>Riwayat transaksi</h2>
+      <div class="table-wrap" id="sales">Memuat transaksi...</div>
+      <h3 id="profitSummary">Total laba: —</h3>
+    </section>
+  </section>
+
+  <p class="note">
+    Aplikasi ini memakai Supabase untuk login dan data online.
+    Fitur offline dengan antrean sinkronisasi, QRIS berupa gambar,
+    utang, dan pembayaran cicilan belum diaktifkan pada versi ini.
+    Uji dahulu sebelum dipakai untuk transaksi nyata.
+  </p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const SUPABASE_URL = 'https://wvymcpsdrsubwzhugrlh.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = '
+<script>
+const SUPABASE_URL =
+  'https://wvymcpsdrsubwzhugrlh.supabase.co';
+
+const SUPABASE_PUBLISHABLE_KEY =
+const sb = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
+(async function tesKoneksi() {
+  const status = document.getElementById('net');
+
+  if (!navigator.onLine) {
+    status.textContent =
+      'Offline — koneksi Supabase belum dapat diuji.';
+    return;
+  }
+
+  const { error } = await sb.auth.getSession();
+
+  status.textContent = error
+    ? 'Koneksi Supabase gagal. Periksa konfigurasi.'
+    : 'Koneksi Supabase berhasil. Login dan sinkronisasi belum diaktifkan.';
+})();
+</script>
+';
+
+  const $ = id => document.getElementById(id);
+  const rupiah = n => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+  let sb = null;
+  let currentUser = null;
+  let currentProfile = null;
+  let products = [];
+  let latestReceipt = null;
+
+  function message(id, text, isError = false) {
+    const el = $(id);
+    el.textContent = text;
+    el.className = isError ? 'error' : 'success';
+  }
+
+  function setBusy(id, busy, busyText, normalText) {
+    const el = $(id);
+    el.disabled = busy;
+    el.textContent = busy ? busyText : normalText;
+  }
+
+  function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[ch]);
+  }
+
+  function formatDate(value) {
+    return new Date(value).toLocaleString('id-ID');
+  }
+
+  function setStatus(text, error = false) {
+    $('status').textContent = text;
+    $('status').className = error ? 'note error' : 'note';
+  }
+
+  function showApp(profile) {
+    $('loginCard').hidden = true;
+    $('app').hidden = false;
+    $('userName').textContent = profile.display_name || currentUser.email;
+    $('userRole').textContent =
+      profile.role === 'super_admin' ? 'Super Admin' : 'Kasir';
+    $('productFormCard').hidden = false;
+  }
+
+  function showLogin() {
+    $('loginCard').hidden = false;
+    $('app').hidden = true;
+    currentUser = null;
+    currentProfile = null;
+    products = [];
+  }
+
+  async function loadProfile() {
+    const { data, error } = await sb
+      .from('profiles')
+      .select('id, display_name, role')
+      .eq('id', currentUser.id)
+      .single();
+
+    if (error) throw error;
+
+    if (!data || !['super_admin', 'cashier'].includes(data.role)) {
+      throw new Error('Profil pengguna tidak ditemukan atau perannya belum diatur.');
+    }
+
+    currentProfile = data;
+    showApp(data);
+  }
+
+  async function loadProducts() {
+    const { data, error } = await sb
+      .from('products')
+      .select('id, code, name, cost_price, sell_price, stock, updated_at')
+      .order('name');
+
+    if (error) throw error;
+
+    products = data || [];
+    drawProducts();
+  }
+
+  function drawProducts() {
+    if (!products.length) {
+      $('products').textContent = 'Belum ada barang.';
+      return;
+    }
+
+    $('products').innerHTML =
+      '<table><thead><tr><th>Kode</th><th>Nama barang</th><th>Harga jual</th><th>Stok</th></tr></thead><tbody>' +
+      products.map(p => `<tr>
+        <td>${escapeHTML(p.code)}</td>
+        <td>${escapeHTML(p.name)}</td>
+        <td>${rupiah(p.sell_price)}</td>
+        <td>${Number(p.stock)}</td>
+      </tr>`).join('') +
+      '</tbody></table>';
+  }
+
+  async function loadSales() {
+    const { data, error } = await sb
+      .from('sales')
+      .select('id, total, payment_method, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    const sales = data || [];
+    $('sales').innerHTML = sales.length
+      ? '<table><thead><tr><th>Waktu</th><th>ID transaksi</th><th>Pembayaran</th><th>Total</th></tr></thead><tbody>' +
+        sales.map(s => `<tr>
+          <td>${escapeHTML(formatDate(s.created_at))}</td>
+          <td>${escapeHTML(s.id)}</td>
+          <td>${escapeHTML(s.payment_method)}</td>
+          <td>${rupiah(s.total)}</td>
+        </tr>`).join('') +
+        '</tbody></table>'
+      : 'Belum ada transaksi yang dapat ditampilkan.';
+
+    $('profitSummary').textContent =
+      'Laba belum dihitung dari riwayat. Laporan laba lengkap perlu mengambil detail item penjualan.';
+  }
+
+  async function refreshAll() {
+    setStatus('Memuat data dari Supabase...');
+    try {
+      await Promise.all([loadProducts(), loadSales()]);
+      setStatus('Data online berhasil dimuat.');
+    } catch (error) {
+      console.error(error);
+      setStatus('Gagal memuat data: ' + error.message, true);
+    }
+  }
+
+  $('loginForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!sb) return message('loginMessage', 'Konfigurasi Supabase belum benar.', true);
+
+    setBusy('loginButton', true, 'Memeriksa...', 'Masuk');
+    message('loginMessage', '');
+
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: $('email').value.trim(),
+        password: $('password').value
+      });
+
+      if (error) throw error;
+
+      currentUser = data.user;
+      await loadProfile();
+      $('password').value = '';
+      message('loginMessage', '');
+      await refreshAll();
+    } catch (error) {
+      console.error(error);
+      message('loginMessage', error.message || 'Login gagal.', true);
+      showLogin();
+    } finally {
+      setBusy('loginButton', false, 'Memeriksa...', 'Masuk');
+    }
+  });
+
+  $('productForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentUser || !currentProfile) return;
+
+    const payload = {
+      p_code: $('productCode').value.trim(),
+      p_name: $('productName').value.trim(),
+      p_cost_price: Number($('costPrice').value),
+      p_sell_price: Number($('sellPrice').value),
+      p_quantity: Number($('quantityIn').value)
+    };
+
+    if (
+      !payload.p_code || !payload.p_name ||
+      !Number.isFinite(payload.p_cost_price) || payload.p_cost_price < 0 ||
+      !Number.isFinite(payload.p_sell_price) || payload.p_sell_price < 0 ||
+      !Number.isSafeInteger(payload.p_quantity) || payload.p_quantity < 0
+    ) {
+      return message('productMessage', 'Periksa kembali data barang.', true);
+    }
+
+    setBusy('saveProductButton', true, 'Menyimpan...', 'Simpan barang');
+
+    try {
+      const { error } = await sb.rpc('add_or_restock_product', payload);
+      if (error) throw error;
+
+      message('productMessage', 'Barang berhasil disimpan ke database.');
+      $('productForm').reset();
+      $('costPrice').value = '0';
+      $('sellPrice').value = '0';
+      $('quantityIn').value = '1';
+      await loadProducts();
+    } catch (error) {
+      console.error(error);
+      message('productMessage', error.message || 'Gagal menyimpan barang.', true);
+    } finally {
+      setBusy('saveProductButton', false, 'Menyimpan...', 'Simpan barang');
+    }
+  });
+
+  $('saleForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!currentUser || !currentProfile) return;
+
+    const code = $('saleCode').value.trim();
+    const qty = Number($('saleQuantity').value);
+    const product = products.find(p => p.code === code);
+    const paymentMethod = $('paymentMethod').value;
+
+    if (!product) {
+      return message('saleMessage', 'Kode barang tidak ditemukan.', true);
+    }
+    if (!Number.isSafeInteger(qty) || qty < 1) {
+      return message('saleMessage', 'Jumlah harus bilangan bulat minimal 1.', true);
+    }
+
+    setBusy('sellButton', true, 'Memproses...', 'Proses penjualan');
+    $('receipt').hidden = true;
+    $('printButton').hidden = true;
+
+    try {
+      const syncId = crypto.randomUUID();
+
+      const { data, error } = await sb.rpc('process_sale', {
+        p_items: [{ product_id: product.id, qty }],
+        p_payment_method: paymentMethod,
+        p_sync_id: syncId
+      });
+
+      if (error) throw error;
+
+      const result = Array.isArray(data) ? data[0] : data;
+      latestReceipt = {
+        result,
+        productName: product.name,
+        code: product.code,
+        qty,
+        paymentMethod,
+        time: new Date().toLocaleString('id-ID')
+      };
+
+      const total =
+        Number(result?.total ?? result?.sale_total ?? product.sell_price * qty);
+      const saleId = result?.sale_id ?? result?.id ?? result;
+
+      $('receipt').innerHTML = `
+        <h2>DOCTOR SMARTHONE</h2>
+        <p>STRUK PENJUALAN</p>
+        <p>Waktu: ${escapeHTML(latestReceipt.time)}</p>
+        <p>Barang: ${escapeHTML(product.name)}</p>
+        <p>Kode: ${escapeHTML(product.code)}</p>
+        <p>Jumlah: ${qty}</p>
+        <p>Pembayaran: ${escapeHTML(paymentMethod.toUpperCase())}</p>
+        <h3>Total: ${rupiah(total)}</h3>
+        <small>ID transaksi: ${escapeHTML(saleId)}</small>
+        <p>Terima kasih.</p>`;
+
+      $('receipt').hidden = false;
+      $('printButton').hidden = false;
+      message('saleMessage', 'Transaksi berhasil diproses.');
+      $('saleForm').reset();
+      $('saleQuantity').value = '1';
+      await refreshAll();
+    } catch (error) {
+      console.error(error);
+      message('saleMessage', error.message || 'Transaksi gagal.', true);
+    } finally {
+      setBusy('sellButton', false, 'Memproses...', 'Proses penjualan');
+    }
+  });
+
+  $('refreshButton').addEventListener('click', refreshAll);
+
+  $('printButton').addEventListener('click', () => {
+    if (latestReceipt) window.print();
+  });
+
+  $('logoutButton').addEventListener('click', async () => {
+    try {
+      const { error } = await sb.auth.signOut();
+      if (error) throw error;
+      showLogin();
+      message('loginMessage', 'Kamu sudah keluar.');
+      setStatus('Silakan login kembali.');
+    } catch (error) {
+      message('loginMessage', error.message || 'Gagal keluar.', true);
+    }
+  });
+
+  async function init() {
+    if (
+      !window.supabase ||
+      SUPABASE_PUBLISHABLE_KEY === 'TEMPEL_PUBLISHABLE_KEY_DI_SINI'
+    ) {
+      setStatus('Masukkan Publishable Key Supabase pada kode terlebih dahulu.', true);
+      return;
+    }
+
+    try {
+      sb = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY
+      );
+
+      const { data, error } = await sb.auth.getSession();
+      if (error) throw error;
+
+      if (data.session?.user) {
+        currentUser = data.session.user;
+        await loadProfile();
+        await refreshAll();
+      } else {
+        setStatus(navigator.onLine
+          ? 'Supabase siap. Silakan login.'
+          : 'Offline. Login online diperlukan untuk memulai sesi.');
+      }
+
+      sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT' || !session) {
+          showLogin();
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      setStatus('Inisialisasi gagal: ' + error.message, true);
+    }
+  }
+
+  window.addEventListener('online', () => {
+    if (sb && currentUser) refreshAll();
+    else setStatus('Internet kembali tersedia. Silakan login.');
+  });
+
+  window.addEventListener('offline', () => {
+    setStatus('Offline — transaksi online tidak tersedia.', true);
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(console.warn);
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
